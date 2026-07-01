@@ -10,33 +10,245 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OwnerIndexRouteImport } from './routes/owner.index'
+import { Route as ManagerIndexRouteImport } from './routes/manager.index'
+import { Route as AuditorIndexRouteImport } from './routes/auditor.index'
+import { Route as AppownerIndexRouteImport } from './routes/appowner.index'
+import { Route as OwnerWhatIfRouteImport } from './routes/owner.what-if'
+import { Route as OwnerWasteMapRouteImport } from './routes/owner.waste-map'
+import { Route as OwnerTrustIndexRouteImport } from './routes/owner.trust-index'
+import { Route as OwnerRiskMapRouteImport } from './routes/owner.risk-map'
+import { Route as OwnerPortfolioRouteImport } from './routes/owner.portfolio'
+import { Route as OwnerLedgerRouteImport } from './routes/owner.ledger'
+import { Route as OwnerAdvisorRouteImport } from './routes/owner.advisor'
+import { Route as ManagerTasksRouteImport } from './routes/manager.tasks'
+import { Route as AuditorUploadRouteImport } from './routes/auditor.upload'
+import { Route as AuditorTasksRouteImport } from './routes/auditor.tasks'
+import { Route as AppownerTemplatesRouteImport } from './routes/appowner.templates'
+import { Route as AppownerMaintenanceRouteImport } from './routes/appowner.maintenance'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OwnerIndexRoute = OwnerIndexRouteImport.update({
+  id: '/owner/',
+  path: '/owner/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerIndexRoute = ManagerIndexRouteImport.update({
+  id: '/manager/',
+  path: '/manager/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditorIndexRoute = AuditorIndexRouteImport.update({
+  id: '/auditor/',
+  path: '/auditor/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppownerIndexRoute = AppownerIndexRouteImport.update({
+  id: '/appowner/',
+  path: '/appowner/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerWhatIfRoute = OwnerWhatIfRouteImport.update({
+  id: '/owner/what-if',
+  path: '/owner/what-if',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerWasteMapRoute = OwnerWasteMapRouteImport.update({
+  id: '/owner/waste-map',
+  path: '/owner/waste-map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerTrustIndexRoute = OwnerTrustIndexRouteImport.update({
+  id: '/owner/trust-index',
+  path: '/owner/trust-index',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerRiskMapRoute = OwnerRiskMapRouteImport.update({
+  id: '/owner/risk-map',
+  path: '/owner/risk-map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerPortfolioRoute = OwnerPortfolioRouteImport.update({
+  id: '/owner/portfolio',
+  path: '/owner/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerLedgerRoute = OwnerLedgerRouteImport.update({
+  id: '/owner/ledger',
+  path: '/owner/ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerAdvisorRoute = OwnerAdvisorRouteImport.update({
+  id: '/owner/advisor',
+  path: '/owner/advisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerTasksRoute = ManagerTasksRouteImport.update({
+  id: '/manager/tasks',
+  path: '/manager/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditorUploadRoute = AuditorUploadRouteImport.update({
+  id: '/auditor/upload',
+  path: '/auditor/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditorTasksRoute = AuditorTasksRouteImport.update({
+  id: '/auditor/tasks',
+  path: '/auditor/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppownerTemplatesRoute = AppownerTemplatesRouteImport.update({
+  id: '/appowner/templates',
+  path: '/appowner/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppownerMaintenanceRoute = AppownerMaintenanceRouteImport.update({
+  id: '/appowner/maintenance',
+  path: '/appowner/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/appowner/maintenance': typeof AppownerMaintenanceRoute
+  '/appowner/templates': typeof AppownerTemplatesRoute
+  '/auditor/tasks': typeof AuditorTasksRoute
+  '/auditor/upload': typeof AuditorUploadRoute
+  '/manager/tasks': typeof ManagerTasksRoute
+  '/owner/advisor': typeof OwnerAdvisorRoute
+  '/owner/ledger': typeof OwnerLedgerRoute
+  '/owner/portfolio': typeof OwnerPortfolioRoute
+  '/owner/risk-map': typeof OwnerRiskMapRoute
+  '/owner/trust-index': typeof OwnerTrustIndexRoute
+  '/owner/waste-map': typeof OwnerWasteMapRoute
+  '/owner/what-if': typeof OwnerWhatIfRoute
+  '/appowner/': typeof AppownerIndexRoute
+  '/auditor/': typeof AuditorIndexRoute
+  '/manager/': typeof ManagerIndexRoute
+  '/owner/': typeof OwnerIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/appowner/maintenance': typeof AppownerMaintenanceRoute
+  '/appowner/templates': typeof AppownerTemplatesRoute
+  '/auditor/tasks': typeof AuditorTasksRoute
+  '/auditor/upload': typeof AuditorUploadRoute
+  '/manager/tasks': typeof ManagerTasksRoute
+  '/owner/advisor': typeof OwnerAdvisorRoute
+  '/owner/ledger': typeof OwnerLedgerRoute
+  '/owner/portfolio': typeof OwnerPortfolioRoute
+  '/owner/risk-map': typeof OwnerRiskMapRoute
+  '/owner/trust-index': typeof OwnerTrustIndexRoute
+  '/owner/waste-map': typeof OwnerWasteMapRoute
+  '/owner/what-if': typeof OwnerWhatIfRoute
+  '/appowner': typeof AppownerIndexRoute
+  '/auditor': typeof AuditorIndexRoute
+  '/manager': typeof ManagerIndexRoute
+  '/owner': typeof OwnerIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/appowner/maintenance': typeof AppownerMaintenanceRoute
+  '/appowner/templates': typeof AppownerTemplatesRoute
+  '/auditor/tasks': typeof AuditorTasksRoute
+  '/auditor/upload': typeof AuditorUploadRoute
+  '/manager/tasks': typeof ManagerTasksRoute
+  '/owner/advisor': typeof OwnerAdvisorRoute
+  '/owner/ledger': typeof OwnerLedgerRoute
+  '/owner/portfolio': typeof OwnerPortfolioRoute
+  '/owner/risk-map': typeof OwnerRiskMapRoute
+  '/owner/trust-index': typeof OwnerTrustIndexRoute
+  '/owner/waste-map': typeof OwnerWasteMapRoute
+  '/owner/what-if': typeof OwnerWhatIfRoute
+  '/appowner/': typeof AppownerIndexRoute
+  '/auditor/': typeof AuditorIndexRoute
+  '/manager/': typeof ManagerIndexRoute
+  '/owner/': typeof OwnerIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/appowner/maintenance'
+    | '/appowner/templates'
+    | '/auditor/tasks'
+    | '/auditor/upload'
+    | '/manager/tasks'
+    | '/owner/advisor'
+    | '/owner/ledger'
+    | '/owner/portfolio'
+    | '/owner/risk-map'
+    | '/owner/trust-index'
+    | '/owner/waste-map'
+    | '/owner/what-if'
+    | '/appowner/'
+    | '/auditor/'
+    | '/manager/'
+    | '/owner/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/appowner/maintenance'
+    | '/appowner/templates'
+    | '/auditor/tasks'
+    | '/auditor/upload'
+    | '/manager/tasks'
+    | '/owner/advisor'
+    | '/owner/ledger'
+    | '/owner/portfolio'
+    | '/owner/risk-map'
+    | '/owner/trust-index'
+    | '/owner/waste-map'
+    | '/owner/what-if'
+    | '/appowner'
+    | '/auditor'
+    | '/manager'
+    | '/owner'
+  id:
+    | '__root__'
+    | '/'
+    | '/appowner/maintenance'
+    | '/appowner/templates'
+    | '/auditor/tasks'
+    | '/auditor/upload'
+    | '/manager/tasks'
+    | '/owner/advisor'
+    | '/owner/ledger'
+    | '/owner/portfolio'
+    | '/owner/risk-map'
+    | '/owner/trust-index'
+    | '/owner/waste-map'
+    | '/owner/what-if'
+    | '/appowner/'
+    | '/auditor/'
+    | '/manager/'
+    | '/owner/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppownerMaintenanceRoute: typeof AppownerMaintenanceRoute
+  AppownerTemplatesRoute: typeof AppownerTemplatesRoute
+  AuditorTasksRoute: typeof AuditorTasksRoute
+  AuditorUploadRoute: typeof AuditorUploadRoute
+  ManagerTasksRoute: typeof ManagerTasksRoute
+  OwnerAdvisorRoute: typeof OwnerAdvisorRoute
+  OwnerLedgerRoute: typeof OwnerLedgerRoute
+  OwnerPortfolioRoute: typeof OwnerPortfolioRoute
+  OwnerRiskMapRoute: typeof OwnerRiskMapRoute
+  OwnerTrustIndexRoute: typeof OwnerTrustIndexRoute
+  OwnerWasteMapRoute: typeof OwnerWasteMapRoute
+  OwnerWhatIfRoute: typeof OwnerWhatIfRoute
+  AppownerIndexRoute: typeof AppownerIndexRoute
+  AuditorIndexRoute: typeof AuditorIndexRoute
+  ManagerIndexRoute: typeof ManagerIndexRoute
+  OwnerIndexRoute: typeof OwnerIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +260,139 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/owner/': {
+      id: '/owner/'
+      path: '/owner'
+      fullPath: '/owner/'
+      preLoaderRoute: typeof OwnerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager/': {
+      id: '/manager/'
+      path: '/manager'
+      fullPath: '/manager/'
+      preLoaderRoute: typeof ManagerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auditor/': {
+      id: '/auditor/'
+      path: '/auditor'
+      fullPath: '/auditor/'
+      preLoaderRoute: typeof AuditorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/appowner/': {
+      id: '/appowner/'
+      path: '/appowner'
+      fullPath: '/appowner/'
+      preLoaderRoute: typeof AppownerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/what-if': {
+      id: '/owner/what-if'
+      path: '/owner/what-if'
+      fullPath: '/owner/what-if'
+      preLoaderRoute: typeof OwnerWhatIfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/waste-map': {
+      id: '/owner/waste-map'
+      path: '/owner/waste-map'
+      fullPath: '/owner/waste-map'
+      preLoaderRoute: typeof OwnerWasteMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/trust-index': {
+      id: '/owner/trust-index'
+      path: '/owner/trust-index'
+      fullPath: '/owner/trust-index'
+      preLoaderRoute: typeof OwnerTrustIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/risk-map': {
+      id: '/owner/risk-map'
+      path: '/owner/risk-map'
+      fullPath: '/owner/risk-map'
+      preLoaderRoute: typeof OwnerRiskMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/portfolio': {
+      id: '/owner/portfolio'
+      path: '/owner/portfolio'
+      fullPath: '/owner/portfolio'
+      preLoaderRoute: typeof OwnerPortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/ledger': {
+      id: '/owner/ledger'
+      path: '/owner/ledger'
+      fullPath: '/owner/ledger'
+      preLoaderRoute: typeof OwnerLedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/advisor': {
+      id: '/owner/advisor'
+      path: '/owner/advisor'
+      fullPath: '/owner/advisor'
+      preLoaderRoute: typeof OwnerAdvisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager/tasks': {
+      id: '/manager/tasks'
+      path: '/manager/tasks'
+      fullPath: '/manager/tasks'
+      preLoaderRoute: typeof ManagerTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auditor/upload': {
+      id: '/auditor/upload'
+      path: '/auditor/upload'
+      fullPath: '/auditor/upload'
+      preLoaderRoute: typeof AuditorUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auditor/tasks': {
+      id: '/auditor/tasks'
+      path: '/auditor/tasks'
+      fullPath: '/auditor/tasks'
+      preLoaderRoute: typeof AuditorTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/appowner/templates': {
+      id: '/appowner/templates'
+      path: '/appowner/templates'
+      fullPath: '/appowner/templates'
+      preLoaderRoute: typeof AppownerTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/appowner/maintenance': {
+      id: '/appowner/maintenance'
+      path: '/appowner/maintenance'
+      fullPath: '/appowner/maintenance'
+      preLoaderRoute: typeof AppownerMaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppownerMaintenanceRoute: AppownerMaintenanceRoute,
+  AppownerTemplatesRoute: AppownerTemplatesRoute,
+  AuditorTasksRoute: AuditorTasksRoute,
+  AuditorUploadRoute: AuditorUploadRoute,
+  ManagerTasksRoute: ManagerTasksRoute,
+  OwnerAdvisorRoute: OwnerAdvisorRoute,
+  OwnerLedgerRoute: OwnerLedgerRoute,
+  OwnerPortfolioRoute: OwnerPortfolioRoute,
+  OwnerRiskMapRoute: OwnerRiskMapRoute,
+  OwnerTrustIndexRoute: OwnerTrustIndexRoute,
+  OwnerWasteMapRoute: OwnerWasteMapRoute,
+  OwnerWhatIfRoute: OwnerWhatIfRoute,
+  AppownerIndexRoute: AppownerIndexRoute,
+  AuditorIndexRoute: AuditorIndexRoute,
+  ManagerIndexRoute: ManagerIndexRoute,
+  OwnerIndexRoute: OwnerIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
