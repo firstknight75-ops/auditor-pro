@@ -8,6 +8,10 @@ import { computeFinancialKpis, findFinancialDeviations } from "../core/audit/fin
 import { listComplianceItems, findComplianceDeviations } from "../core/audit/compliance";
 import { computeCommercialKpis, findCommercialDeviations } from "../core/audit/commercial";
 import { runSmartBridge } from "../core/audit/bridge";
+import { findOperationalDeviations } from "../core/audit/operational";
+import { findAdministrativeDeviations } from "../core/audit/administrative";
+import { recalibrateAllDimensions } from "../core/recalibration";
+import { can, type Capability } from "../core/access";
 import { formatIqdShort } from "../core/iqd";
 
 ensureSchema();

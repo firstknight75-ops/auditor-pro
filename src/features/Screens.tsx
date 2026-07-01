@@ -277,6 +277,8 @@ export function RiskMap() {
 
   const groups = [
     { key: "financial", label: "المالي", items: data.financial, color: "border-red-500 bg-red-50" },
+    { key: "operational", label: "التشغيلي", items: data.operational ?? [], color: "border-amber-500 bg-amber-50" },
+    { key: "administrative", label: "الإداري", items: data.administrative ?? [], color: "border-indigo-500 bg-indigo-50" },
     { key: "commercial", label: "التجاري", items: data.commercial, color: "border-orange-500 bg-orange-50" },
     { key: "compliance", label: "الامتثال", items: data.compliance, color: "border-purple-500 bg-purple-50" },
     { key: "bridge", label: "الجسر الذكي (§4)", items: data.bridge, color: "border-blue-500 bg-blue-50" },
