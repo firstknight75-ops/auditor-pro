@@ -1,15 +1,18 @@
-// Administrative audit engine (§3.1) — async.
-import { rawDb } from "@/db/client";
+// Administrative audit engine (§3.1).
+// Quantitative KPIs (per spec): turnover rate, revenue per employee, cycle time.
+// These replace the older "qualitative" indicators with measurable signals.
+
+import { rawDb } from "../db/client";
 
 export interface AdministrativeKpis {
-  activeEmployees: number;
-  departedEmployees: number;
-  newHires: number;
-  turnoverRatePct: number;
-  revenueIqd: number;
-  revenuePerEmployeeIqd: number;
-  avgDecisionCycleDays: number;
-  departmentConcentrationPct: number;
+  activeEmployees: number;          // distinct HR-system actor_ids seen this quarter
+  departedEmployees: number;       // entries tagged with status=DEPARTED in metadata
+  newHires: number;                // entries tagged with category=hire
+  turnoverRatePct: number;         // departed / avg headcount × 100
+  revenueIqd: number;              // SALE_RECORDED sum, last 90 days
+  revenuePerEmployeeIqd: number;   // revenue / active employees
+  avgDecisionCycleDays: number;    // mean gap between decision and decision_log entry
+  departmentConcentrationPct: number; // top department's share of decisions
 }
 
 export interface AdministrativeFinding {
@@ -20,15 +23,15 @@ export interface AdministrativeFinding {
 }
 
 async function aggregate(companyId: string): Promise<AdministrativeKpis> {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
-  const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
+  const ninetyDaysAgo = Date.now() - 90 * 86400000;
+  const yearAgo = Date.now() - 365 * 86400000;
 
-  const employees = await rawDb.all<{ actor_id: string }, [string, string]>(
+  const employees = await rawDb.all<{ actor_id: string }, [string]>(
     `SELECT DISTINCT actor_id FROM ledger_entries
       WHERE company_id = ?
         AND dimension = 'ADMINISTRATIVE'
         AND entry_date >= ?`,
-    [companyId, ninetyDaysAgo],
+    [companyId, new Date(ninetyDaysAgo).toISOString()],
   );
   const departures = await rawDb.all<{ c: number }, [string, string]>(
     `SELECT COUNT(*) AS c FROM ledger_entries
@@ -36,7 +39,7 @@ async function aggregate(companyId: string): Promise<AdministrativeKpis> {
         AND dimension = 'ADMINISTRATIVE'
         AND json_extract(metadata_json, '$.status') = 'DEPARTED'
         AND entry_date >= ?`,
-    [companyId, ninetyDaysAgo],
+    [companyId, new Date(ninetyDaysAgo).toISOString()],
   );
   const hires = await rawDb.all<{ c: number }, [string, string]>(
     `SELECT COUNT(*) AS c FROM ledger_entries
@@ -44,7 +47,7 @@ async function aggregate(companyId: string): Promise<AdministrativeKpis> {
         AND dimension = 'ADMINISTRATIVE'
         AND json_extract(metadata_json, '$.category') = 'hire'
         AND entry_date >= ?`,
-    [companyId, ninetyDaysAgo],
+    [companyId, new Date(ninetyDaysAgo).toISOString()],
   );
 
   const revenue = await rawDb.all<{ s: number }, [string, string]>(
@@ -52,7 +55,7 @@ async function aggregate(companyId: string): Promise<AdministrativeKpis> {
       WHERE company_id = ?
         AND action = 'SALE_RECORDED'
         AND entry_date >= ?`,
-    [companyId, yearAgo],
+    [companyId, new Date(yearAgo).toISOString()],
   );
 
   const decisions = await rawDb.all<{ department: string; entry_date: string }, [string]>(
@@ -104,6 +107,7 @@ export async function findAdministrativeDeviations(companyId: string): Promise<A
   const k = await aggregate(companyId);
   const findings: AdministrativeFinding[] = [];
 
+  // Turnover > 20% per quarter is a strong signal of internal issues.
   if (k.turnoverRatePct > 20) {
     findings.push({
       kind: "high_turnover",
@@ -112,6 +116,8 @@ export async function findAdministrativeDeviations(companyId: string): Promise<A
       financialImpactIqd: Math.round(k.revenueIqd * 0.04),
     });
   }
+
+  // Revenue per employee: only meaningful when we have headcount.
   if (k.activeEmployees >= 3 && k.revenuePerEmployeeIqd < 5_000_000) {
     findings.push({
       kind: "low_productivity",
@@ -120,6 +126,8 @@ export async function findAdministrativeDeviations(companyId: string): Promise<A
       financialImpactIqd: Math.round(k.revenueIqd * 0.03),
     });
   }
+
+  // Cycle time > 7 days means slow decision-making.
   if (k.avgDecisionCycleDays > 7) {
     findings.push({
       kind: "slow_decisions",
@@ -128,6 +136,8 @@ export async function findAdministrativeDeviations(companyId: string): Promise<A
       financialImpactIqd: Math.round(k.revenueIqd * 0.02),
     });
   }
+
+  // Department concentration > 70% suggests decisions are bottlenecked.
   if (k.departmentConcentrationPct > 70) {
     findings.push({
       kind: "decision_bottleneck",
@@ -136,5 +146,6 @@ export async function findAdministrativeDeviations(companyId: string): Promise<A
       financialImpactIqd: Math.round(k.revenueIqd * 0.015),
     });
   }
+
   return findings;
 }

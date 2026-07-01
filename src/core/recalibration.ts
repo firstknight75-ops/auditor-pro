@@ -15,7 +15,7 @@
 // We then return the previous thresholds so the caller can show a diff
 // in the audit log.
 
-import { rawDb } from "@/db/client";
+import { rawDb } from "../db/client";
 
 export interface ThresholdSet {
   critical: number;

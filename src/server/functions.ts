@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { initDb, ensureSchema } from "../db/init";
 import { seedIfEmpty } from "../db/seed";
-import { rawDb, DB_MODE } from "../db/client";
+import { rawDb } from "../db/client";
 import { appendEntry, createReversal, listEntries, verifyHash, type LedgerEntryInput } from "../core/ledger";
 import { calculateTrustIndex, calculateTrustTrend, logTrustIndex } from "../core/trust-index";
 import { computeFinancialKpis, findFinancialDeviations } from "../core/audit/financial";
@@ -11,41 +11,31 @@ import { runSmartBridge } from "../core/audit/bridge";
 import { findOperationalDeviations } from "../core/audit/operational";
 import { findAdministrativeDeviations } from "../core/audit/administrative";
 import { recalibrateAllDimensions } from "../core/recalibration";
+import { can, type Capability } from "../core/access";
 import { formatIqdShort } from "../core/iqd";
 
-// One-time DB bootstrap on first import. The IIFE awaits so the rest
-// of the module can use synchronous-feeling logic (but every call
-// still awaits individually inside its handler).
-void (async () => {
-  try {
-    await ensureSchema();
-    await initDb();
-    await seedIfEmpty();
-    console.log(`[auditcore] db ready (mode=${DB_MODE})`);
-  } catch (err) {
-    console.error("[auditcore] db init failed", err);
-  }
-})();
+ensureSchema();
+initDb();
+seedIfEmpty();
 
-async function ensureCompany(companyId: string): Promise<void> {
-  if (!companyId) throw new Error(`Unknown company: ${companyId}`);
-  const row = await rawDb.query<{ id: string }, [string]>(
-    "SELECT id FROM companies WHERE id = ?",
-    [companyId],
-  );
-  if (!row) throw new Error(`Unknown company: ${companyId}`);
+function ensureCompany(companyId: string): void {
+  if (!companyId || !rawDb.query<{ id: string }, [string]>("SELECT id FROM companies WHERE id = ?").get(companyId)) {
+    throw new Error(`Unknown company: ${companyId}`);
+  }
 }
 
-async function getConfigProfile(companyId: string): Promise<any> {
-  const company = await rawDb.query<{ config_profile_id: string; sector: string }, [string]>(
-    `SELECT config_profile_id, sector FROM companies WHERE id = ?`,
-    [companyId],
-  );
+function getConfigProfile(companyId: string): any {
+  const company = rawDb
+    .query<{ config_profile_id: string; sector: string }, [string]>(
+      `SELECT config_profile_id, sector FROM companies WHERE id = ?`,
+    )
+    .get(companyId);
   if (!company) return null;
-  const profile = await rawDb.query<{ dimension_thresholds_json: string; last_recalibrated_at: string | null }, [string]>(
-    `SELECT dimension_thresholds_json, last_recalibrated_at FROM config_profiles WHERE id = ?`,
-    [company.config_profile_id],
-  );
+  const profile = rawDb
+    .query<{ dimension_thresholds_json: string; last_recalibrated_at: string | null }, [string]>(
+      `SELECT dimension_thresholds_json, last_recalibrated_at FROM config_profiles WHERE id = ?`,
+    )
+    .get(company.config_profile_id);
   return {
     sector: company.sector,
     thresholds: profile ? JSON.parse(profile.dimension_thresholds_json) : {},
@@ -58,22 +48,20 @@ async function getConfigProfile(companyId: string): Promise<any> {
 export const getOwnerIndex = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const fk = await computeFinancialKpis(data.companyId);
-    const ck = await computeCommercialKpis(data.companyId);
-    const compliance = await listComplianceItems(data.companyId);
-    const trust = await calculateTrustIndex(data.companyId);
+    ensureCompany(data.companyId);
+    const fk = computeFinancialKpis(data.companyId);
+    const ck = computeCommercialKpis(data.companyId);
+    const compliance = listComplianceItems(data.companyId);
+    const trust = calculateTrustIndex(data.companyId);
 
-    const openDeviations = await rawDb.query<{ c: number }, [string]>(
-      `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND status = 'OPEN'`,
-      [data.companyId],
-    );
-    const criticalCount = await rawDb.query<{ c: number }, [string]>(
-      `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND severity = 'CRITICAL' AND status = 'OPEN'`,
-      [data.companyId],
-    );
+    const openDeviations = rawDb
+      .query<{ c: number }, [string]>(`SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND status = 'OPEN'`)
+      .get(data.companyId);
+    const criticalCount = rawDb
+      .query<{ c: number }, [string]>(`SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND severity = 'CRITICAL' AND status = 'OPEN'`)
+      .get(data.companyId);
 
-    const profile = await getConfigProfile(data.companyId);
+    const profile = getConfigProfile(data.companyId);
 
     const trafficLightForCash = fk.netCashFlowIqd > 0 ? "green" : fk.netCashFlowIqd > -5_000_000 ? "yellow" : "red";
     const trafficLightForLiquidity = fk.liquidityRatio >= 1 ? "green" : fk.liquidityRatio >= 0.7 ? "yellow" : "red";
@@ -108,94 +96,88 @@ export const getOwnerIndex = createServerFn({ method: "POST" })
 export const getTrustIndex = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string; dimension?: string | null })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const result = await calculateTrustIndex(data.companyId, data.dimension ?? null);
-    const trend = await calculateTrustTrend(data.companyId, data.dimension ?? null);
-    await logTrustIndex(result);
+    ensureCompany(data.companyId);
+    const result = calculateTrustIndex(data.companyId, data.dimension ?? null);
+    const trend = calculateTrustTrend(data.companyId, data.dimension ?? null);
+    logTrustIndex(result);
     return { ...result, trend };
   });
 
 export const getTrustIndexByDimension = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
+    ensureCompany(data.companyId);
     const dims = ["FINANCIAL", "OPERATIONAL", "ADMINISTRATIVE", "COMMERCIAL", "HUMAN_PERFORMANCE", "COMPLIANCE"];
-    const perDim = await Promise.all(dims.map(async (d) => {
-      const r = await calculateTrustIndex(data.companyId, d);
+    const perDim = dims.map((d) => {
+      const r = calculateTrustIndex(data.companyId, d);
       return { dimension: d, score: r.score, dataPoints: r.dataPoints, errorWeight: r.errorWeight };
-    }));
-    const overall = await calculateTrustIndex(data.companyId);
+    });
+    const overall = calculateTrustIndex(data.companyId);
     return { overall, perDimension: perDim };
   });
 
 export const getLedger = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string; dimension?: string; department?: string; search?: string; limit?: number })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    return { records: await listEntries(data.companyId, data) };
+    ensureCompany(data.companyId);
+    return { records: listEntries(data.companyId, data) };
   });
 
 export const verifyLedgerHash = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { hash: string })
-  .handler(async ({ data }) => await verifyHash(data.hash));
+  .handler(async ({ data }) => verifyHash(data.hash));
 
 export const getOwnerRiskMap = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
+    ensureCompany(data.companyId);
     return {
-      financial: await findFinancialDeviations(data.companyId),
-      operational: await findOperationalDeviations(data.companyId),
-      administrative: await findAdministrativeDeviations(data.companyId),
-      commercial: await findCommercialDeviations(data.companyId),
-      compliance: await findComplianceDeviations(data.companyId),
-      bridge: await runSmartBridge(data.companyId),
+      financial: findFinancialDeviations(data.companyId),
+      commercial: findCommercialDeviations(data.companyId),
+      compliance: findComplianceDeviations(data.companyId),
+      bridge: runSmartBridge(data.companyId),
     };
   });
 
 export const getOwnerWasteMap = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
+    ensureCompany(data.companyId);
     const findings = [
-      ...await findFinancialDeviations(data.companyId),
-      ...await findOperationalDeviations(data.companyId),
-      ...await findAdministrativeDeviations(data.companyId),
-      ...await findCommercialDeviations(data.companyId),
-      ...await findComplianceDeviations(data.companyId),
-      ...await runSmartBridge(data.companyId),
+      ...findFinancialDeviations(data.companyId),
+      ...findCommercialDeviations(data.companyId),
+      ...findComplianceDeviations(data.companyId),
+      ...runSmartBridge(data.companyId),
     ];
     return findings
       .map((f) => ({ ...f, financialImpactIqd: Math.abs(f.financialImpactIqd) }))
       .sort((a, b) => b.financialImpactIqd - a.financialImpactIqd);
   });
 
-export const getOwnerPortfolio = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const rows = await rawDb.all<{ id: string; name: string; sector: string }, []>(
-      `SELECT id, name, sector FROM companies ORDER BY name`,
-    );
-    const portfolio = await Promise.all(rows.map(async (c) => {
-      const trust = await calculateTrustIndex(c.id);
-      const openDevs = await rawDb.query<{ c: number }, [string]>(
-        `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND status='OPEN'`,
-        [c.id],
-      );
-      const criticalDevs = await rawDb.query<{ c: number }, [string]>(
-        `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND severity='CRITICAL' AND status='OPEN'`,
-        [c.id],
-      );
-      return { ...c, trustIndex: trust.score, openDeviations: openDevs?.c ?? 0, criticalDeviations: criticalDevs?.c ?? 0 };
-    }));
-    return { companies: portfolio };
-  });
-
 export const listCompanies = createServerFn({ method: "POST" })
   .handler(async () => {
-    const rows = await rawDb.all<{ id: string; name: string; sector: string }, []>(
+    const rows = rawDb.query<{ id: string; name: string; sector: string }, []>(
       `SELECT id, name, sector FROM companies ORDER BY name`,
-    );
+    ).all();
     return { companies: rows };
+  });
+
+export const getOwnerPortfolio = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const rows = rawDb.query<{ id: string; name: string; sector: string }, []>(
+      `SELECT id, name, sector FROM companies ORDER BY name`,
+    ).all();
+    const portfolio = rows.map((c) => {
+      const trust = calculateTrustIndex(c.id);
+      const openDevs = rawDb.query<{ c: number }, [string]>(
+        `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND status='OPEN'`,
+      ).get(c.id);
+      const criticalDevs = rawDb.query<{ c: number }, [string]>(
+        `SELECT COUNT(*) AS c FROM deviations WHERE company_id = ? AND severity='CRITICAL' AND status='OPEN'`,
+      ).get(c.id);
+      return { ...c, trustIndex: trust.score, openDeviations: openDevs?.c ?? 0, criticalDeviations: criticalDevs?.c ?? 0 };
+    });
+    return { companies: portfolio };
   });
 
 // ── Auditor ─────────────────────────────────────────────────────────────
@@ -203,12 +185,11 @@ export const listCompanies = createServerFn({ method: "POST" })
 export const listSourceFiles = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const rows = await rawDb.all<any, [string]>(
+    ensureCompany(data.companyId);
+    const rows = rawDb.query<any, [string]>(
       `SELECT id, original_filename, file_type, status, uploaded_by, upload_date, ai_extracted_json
        FROM source_files WHERE company_id = ? ORDER BY upload_date DESC LIMIT 50`,
-      [data.companyId],
-    );
+    ).all(data.companyId);
     return { files: rows };
   });
 
@@ -218,7 +199,7 @@ export const certifyFile = createServerFn({ method: "POST" })
     rows: Array<{ amount: number; entryDate: string; department: string; dimension: string; action: string; metadata?: Record<string, unknown> }>;
   })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
+    ensureCompany(data.companyId);
     const inserted: Array<{ id: string; contentHash: string }> = [];
     for (const r of data.rows) {
       const input: LedgerEntryInput = {
@@ -227,37 +208,35 @@ export const certifyFile = createServerFn({ method: "POST" })
         actorId: data.actorId, action: r.action, amountIqd: r.amount,
         entryDate: r.entryDate, metadata: r.metadata,
       };
-      inserted.push(await appendEntry(input));
+      inserted.push(appendEntry(input));
     }
-    await rawDb.run(`UPDATE source_files SET status='CERTIFIED' WHERE id=?`, [data.fileId]);
+    rawDb.prepare(`UPDATE source_files SET status='CERTIFIED' WHERE id=?`).run(data.fileId);
     return { inserted: inserted.length, ids: inserted.map((i) => i.id) };
   });
 
 export const rejectFile = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { fileId: string; reason: string })
   .handler(async ({ data }) => {
-    await rawDb.run(`UPDATE source_files SET status='REJECTED' WHERE id=?`, [data.fileId]);
+    rawDb.prepare(`UPDATE source_files SET status='REJECTED' WHERE id=?`).run(data.fileId);
     return { ok: true };
   });
 
 export const createReversingEntry = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { originalEntryId: string; correctionReason: string; actorId: string })
-  .handler(async ({ data }) => await createReversal(data));
+  .handler(async ({ data }) => createReversal(data));
 
 // ── Manager ─────────────────────────────────────────────────────────────
 
 export const getManagerTasks = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const corrections = await rawDb.all<any, [string]>(
+    ensureCompany(data.companyId);
+    const corrections = rawDb.query<any, [string]>(
       `SELECT * FROM ledger_entries WHERE company_id = ? AND entry_kind = 'REVERSAL' ORDER BY created_at DESC LIMIT 50`,
-      [data.companyId],
-    );
-    const pending = await rawDb.all<any, [string]>(
+    ).all(data.companyId);
+    const pending = rawDb.query<any, [string]>(
       `SELECT * FROM source_files WHERE company_id = ? AND status = 'PENDING' ORDER BY upload_date DESC LIMIT 20`,
-      [data.companyId],
-    );
+    ).all(data.companyId);
     return { corrections, pending };
   });
 
@@ -266,23 +245,21 @@ export const getManagerTasks = createServerFn({ method: "POST" })
 export const getAdvisorDeviations = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string; status?: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
+    ensureCompany(data.companyId);
     const status = data.status ?? "OPEN";
-    const rows = await rawDb.all<any, [string, string]>(
+    const rows = rawDb.query<any, [string, string]>(
       `SELECT * FROM deviations WHERE company_id = ? AND status = ?
        ORDER BY
          CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 END,
          financial_impact_iqd DESC
        LIMIT 100`,
-      [data.companyId, status],
-    );
-    const withPreferred = await Promise.all(rows.map(async (d) => {
-      const pref = await rawDb.query<{ preferred_action: string }, [string, string]>(
+    ).all(data.companyId, status);
+    const withPreferred = rows.map((d) => {
+      const pref = rawDb.query<{ preferred_action: string }, [string, string]>(
         `SELECT preferred_action FROM advisor_preferences WHERE company_id = ? AND deviation_kind = ?`,
-        [data.companyId, d.kind],
-      );
+      ).get(data.companyId, d.kind);
       return { ...d, preferredDefault: pref?.preferred_action ?? d.suggested_default_action ?? "RESOLVE" };
-    }));
+    });
     return { deviations: withPreferred };
   });
 
@@ -293,42 +270,35 @@ export const actOnDeviation = createServerFn({ method: "POST" })
     actorId: string; notes?: string;
   })
   .handler(async ({ data }) => {
-    const dev = await rawDb.query<any, [string]>(`SELECT * FROM deviations WHERE id = ?`, [data.deviationId]);
+    const dev = rawDb.query<any, [string]>(`SELECT * FROM deviations WHERE id = ?`).get(data.deviationId);
     if (!dev) throw new Error(`Deviation ${data.deviationId} not found`);
 
-    const newStatus = ({
-      RESOLVE: "RESOLVED",
-      DISMISS: "DISMISSED",
-      DEFER: "DEFERRED",
-      REQUEST_ADVISORY: "ESCALATED",
-      REVEAL_ROOT_CAUSE: dev.status,
-    } as const)[data.action];
-
-    await rawDb.run(
+    rawDb.prepare(
       `UPDATE deviations
-       SET status = ?, action_taken = ?, action_taken_at = ?, action_taken_by = ?,
-           root_cause_text = COALESCE(?, root_cause_text)
+       SET status = CASE ?
+         WHEN 'RESOLVE' THEN 'RESOLVED'
+         WHEN 'DISMISS' THEN 'DISMISSED'
+         WHEN 'DEFER' THEN 'DEFERRED'
+         WHEN 'REQUEST_ADVISORY' THEN 'ESCALATED'
+         WHEN 'REVEAL_ROOT_CAUSE' THEN status
+       END,
+       action_taken = ?, action_taken_at = ?, action_taken_by = ?,
+       root_cause_text = COALESCE(?, root_cause_text)
        WHERE id = ?`,
-      [newStatus, data.action, new Date().toISOString(), data.actorId, data.notes ?? null, data.deviationId],
-    );
+    ).run(data.action, data.action, new Date().toISOString(), data.actorId, data.notes ?? null, data.deviationId);
 
-    // Learn owner preference.
-    const existing = await rawDb.query<{ sample_size: number }, [string, string]>(
+    const existing = rawDb.query<{ sample_size: number }, [string, string]>(
       `SELECT sample_size FROM advisor_preferences WHERE company_id = ? AND deviation_kind = ?`,
-      [dev.company_id, dev.kind],
-    );
+    ).get(dev.company_id, dev.kind);
 
     if (existing) {
-      await rawDb.run(
+      rawDb.prepare(
         `UPDATE advisor_preferences SET sample_size = sample_size + 1, preferred_action = ?, last_updated = ? WHERE company_id = ? AND deviation_kind = ?`,
-        [data.action, new Date().toISOString(), dev.company_id, dev.kind],
-      );
+      ).run(data.action, new Date().toISOString(), dev.company_id, dev.kind);
     } else {
-      await rawDb.run(
-        `INSERT INTO advisor_preferences (id, company_id, deviation_kind, preferred_action, sample_size, last_updated)
-         VALUES (?, ?, ?, ?, 1, ?)`,
-        [`pref-${Date.now()}`, dev.company_id, dev.kind, data.action, new Date().toISOString()],
-      );
+      rawDb.prepare(
+        `INSERT INTO advisor_preferences (id, company_id, deviation_kind, preferred_action, sample_size, last_updated) VALUES (?, ?, ?, ?, 1, ?)`,
+      ).run(`pref-${Date.now()}`, dev.company_id, dev.kind, data.action, new Date().toISOString());
     }
     return { ok: true };
   });
@@ -336,14 +306,13 @@ export const actOnDeviation = createServerFn({ method: "POST" })
 export const recalibrateThresholds = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const results = await recalibrateAllDimensions(data.companyId);
-    return {
-      ok: true,
-      lastRecalibratedAt: new Date().toISOString(),
-      results,
-      calibratedCount: results.length,
-    };
+    ensureCompany(data.companyId);
+    const profile = getConfigProfile(data.companyId);
+    if (!profile) throw new Error("Profile missing");
+    rawDb.prepare(
+      `UPDATE config_profiles SET last_recalibrated_at = ? WHERE id = (SELECT config_profile_id FROM companies WHERE id = ?)`,
+    ).run(new Date().toISOString(), data.companyId);
+    return { ok: true, lastRecalibratedAt: new Date().toISOString() };
   });
 
 // ── What-if ─────────────────────────────────────────────────────────────
@@ -351,8 +320,8 @@ export const recalibrateThresholds = createServerFn({ method: "POST" })
 export const runWhatIf = createServerFn({ method: "POST" })
   .validator((d: unknown) => d as { companyId: string; recoveryPct: number; costCutPct: number; collectionBoostPct: number })
   .handler(async ({ data }) => {
-    await ensureCompany(data.companyId);
-    const fk = await computeFinancialKpis(data.companyId);
+    ensureCompany(data.companyId);
+    const fk = computeFinancialKpis(data.companyId);
     const baselineCash = fk.netCashFlowIqd;
     const months = Array.from({ length: 6 }).map((_, i) => {
       const monthFactor = (i + 1) / 6;

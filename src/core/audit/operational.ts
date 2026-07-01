@@ -1,15 +1,18 @@
-// Operational audit engine (§3.2) — async.
-import { rawDb } from "@/db/client";
+// Operational audit engine (§3.2).
+// KPIs: production efficiency, waste %, on-time delivery, inventory turnover.
+// All inputs come from the ledger — no separate operational data source.
+
+import { rawDb } from "../db/client";
 
 export interface OperationalKpis {
   totalProduced: number;
   totalWasted: number;
   totalDelivered: number;
   totalOrdered: number;
-  wasteRatio: number;
-  onTimeDeliveryRatio: number;
-  inventoryTurnoverRatio: number;
-  avgCycleTimeDays: number;
+  wasteRatio: number;             // wasted / produced (lower is better)
+  onTimeDeliveryRatio: number;    // delivered on/before target_date / ordered
+  inventoryTurnoverRatio: number; // sold / avg stock proxy
+  avgCycleTimeDays: number;       // mean entry_date → today for RECEIPT_LOG
 }
 
 export interface OperationalFinding {
@@ -19,6 +22,8 @@ export interface OperationalFinding {
   financialImpactIqd: number;
 }
 
+// Heuristic: amount_iqd acts as our proxy for quantity. We tag
+// ledger entries with a category in metadata_json for finer resolution.
 async function aggregate(companyId: string): Promise<OperationalKpis> {
   const rows = await rawDb.all<{ action: string; amount_iqd: number; metadata_json: string | null }, [string]>(
     `SELECT action, amount_iqd, metadata_json
@@ -73,6 +78,7 @@ export async function findOperationalDeviations(companyId: string): Promise<Oper
   const k = await aggregate(companyId);
   const findings: OperationalFinding[] = [];
 
+  // Waste ratio > 8% is a red flag for most sectors.
   if (k.wasteRatio > 0.08) {
     findings.push({
       kind: "high_waste",
@@ -81,6 +87,8 @@ export async function findOperationalDeviations(companyId: string): Promise<Oper
       financialImpactIqd: Math.round(k.totalWasted * 0.4),
     });
   }
+
+  // On-time delivery below 85% indicates logistics issues.
   if (k.onTimeDeliveryRatio < 0.85) {
     findings.push({
       kind: "late_delivery",
@@ -89,6 +97,8 @@ export async function findOperationalDeviations(companyId: string): Promise<Oper
       financialImpactIqd: Math.round(k.totalOrdered * 0.06),
     });
   }
+
+  // Inventory turnover under 4× per quarter suggests slow-moving stock.
   if (k.inventoryTurnoverRatio < 0.25 && k.totalProduced > 0) {
     findings.push({
       kind: "slow_inventory",
@@ -97,6 +107,8 @@ export async function findOperationalDeviations(companyId: string): Promise<Oper
       financialImpactIqd: Math.round(k.totalProduced * 0.05),
     });
   }
+
+  // Average cycle time > 7 days suggests operational drag.
   if (k.avgCycleTimeDays > 7) {
     findings.push({
       kind: "long_cycle",
@@ -105,5 +117,6 @@ export async function findOperationalDeviations(companyId: string): Promise<Oper
       financialImpactIqd: Math.round(k.totalOrdered * 0.04),
     });
   }
+
   return findings;
 }
