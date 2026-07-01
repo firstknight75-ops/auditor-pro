@@ -1,19 +1,19 @@
 // apps/web/src/screens/Screens.tsx
 
-"use client";
+
 
 import { useMemo, useState } from "react";
-import { CompanySwitcher } from "../company/CompanySwitcher";
+import { CompanySwitcher } from "./CompanySwitcher";
 import {
   SECURE_LOADING_MESSAGE,
   useTenantResource,
-} from "../hooks/useTenantResource";
+} from "./useTenantResource";
 import {
   mockLedger,
   mockOwnerIndex,
   mockTrustIndex,
-} from "../lib/mock";
-import { exportCertifiedPdf } from "../lib/pdf";
+} from "./mock";
+import { exportCertifiedPdf } from "./pdf";
 
 function Loading() {
   return (

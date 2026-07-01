@@ -1,6 +1,6 @@
 // apps/web/src/shell/ApiMonitor.tsx
 
-"use client";
+
 
 import { useEffect, useState } from "react";
 

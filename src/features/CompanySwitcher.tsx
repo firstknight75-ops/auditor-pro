@@ -1,10 +1,10 @@
 // apps/web/src/company/CompanySwitcher.tsx
 
-"use client";
+
 
 import { useEffect, useState } from "react";
 import { getActiveCompanyId, setActiveCompanyId } from "./active-company";
-import { mockCompanies } from "../lib/mock";
+import { mockCompanies } from "./mock";
 
 export function CompanySwitcher() {
   const [active, setActive] = useState("");

@@ -1,9 +1,9 @@
 // apps/web/src/hooks/useTenantResource.ts
 
-"use client";
+
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getActiveCompanyId } from "../company/active-company";
+import { getActiveCompanyId } from "./active-company";
 
 export const SECURE_LOADING_MESSAGE =
   "جاري التحقق من الصلاحيات وتأمين RLS لجلسة الشركة الحالية...";
