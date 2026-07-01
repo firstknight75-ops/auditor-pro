@@ -1,4 +1,7 @@
-import { rawDb } from "../../db/client";
+// Financial audit engine (§3.1) — async.
+// Indicators: liquidity, profitability, cash flow, debt ratios, collection cycle.
+
+import { rawDb } from "@/db/client";
 
 export interface FinancialKpis {
   totalRevenueIqd: number;
@@ -17,21 +20,21 @@ export interface FinancialFinding {
   financialImpactIqd: number;
 }
 
-function sumLedger(opts: { companyId: string; since?: string; action?: string }): number {
-  let sql = `SELECT COALESCE(SUM(amount_iqd), 0) AS s FROM ledger_entries WHERE company_id = ?`;
+async function sumLedger(opts: { companyId: string; since?: string; action?: string }): Promise<number> {
   const args: any[] = [opts.companyId];
+  let sql = `SELECT COALESCE(SUM(amount_iqd), 0) AS s FROM ledger_entries WHERE company_id = ?`;
   if (opts.since) { sql += ` AND entry_date >= ?`; args.push(opts.since); }
   if (opts.action) { sql += ` AND action = ?`; args.push(opts.action); }
-  const row = rawDb.query<{ s: number }, any[]>(sql).get(...args);
+  const row = await rawDb.query<{ s: number }, any[]>(sql, args);
   return row?.s ?? 0;
 }
 
-export function computeFinancialKpis(companyId: string, windowDays = 90): FinancialKpis {
+export async function computeFinancialKpis(companyId: string, windowDays = 90): Promise<FinancialKpis> {
   const since = new Date(Date.now() - windowDays * 86400000).toISOString();
-  const revenue = sumLedger({ companyId, since, action: "SALE_RECORDED" });
-  const expenses = Math.abs(sumLedger({ companyId, since, action: "PAYMENT_POSTED" }));
-  const receipts = sumLedger({ companyId, since, action: "RECEIPT_LOG" });
-  const purchases = Math.abs(sumLedger({ companyId, since, action: "PURCHASE_ORDER" }));
+  const revenue = await sumLedger({ companyId, since, action: "SALE_RECORDED" });
+  const expenses = Math.abs(await sumLedger({ companyId, since, action: "PAYMENT_POSTED" }));
+  const receipts = await sumLedger({ companyId, since, action: "RECEIPT_LOG" });
+  const purchases = Math.abs(await sumLedger({ companyId, since, action: "PURCHASE_ORDER" }));
 
   const totalRevenueIqd = revenue;
   const totalExpensesIqd = expenses + purchases;
@@ -41,11 +44,14 @@ export function computeFinancialKpis(companyId: string, windowDays = 90): Financ
   const collectionCycleDays = liquidityRatio < 1 ? Math.round(45 + (1 - liquidityRatio) * 90) : 30;
   const profitabilityMargin = totalRevenueIqd > 0 ? (totalRevenueIqd - totalExpensesIqd) / totalRevenueIqd : 0;
 
-  return { totalRevenueIqd, totalExpensesIqd, netCashFlowIqd, liquidityRatio, collectionCycleDays, debtExposureIqd, profitabilityMargin };
+  return {
+    totalRevenueIqd, totalExpensesIqd, netCashFlowIqd,
+    liquidityRatio, collectionCycleDays, debtExposureIqd, profitabilityMargin,
+  };
 }
 
-export function findFinancialDeviations(companyId: string): FinancialFinding[] {
-  const k = computeFinancialKpis(companyId);
+export async function findFinancialDeviations(companyId: string): Promise<FinancialFinding[]> {
+  const k = await computeFinancialKpis(companyId);
   const findings: FinancialFinding[] = [];
 
   if (k.liquidityRatio < 1.0) {

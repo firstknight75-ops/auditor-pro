@@ -1,4 +1,4 @@
-import { rawDb } from "../../db/client";
+import { rawDb } from "@/db/client";
 
 export interface BridgeFinding {
   kind: string; description: string;
@@ -7,15 +7,17 @@ export interface BridgeFinding {
   involvedEntries: string[];
 }
 
-export function runSmartBridge(companyId: string): BridgeFinding[] {
+export async function runSmartBridge(companyId: string): Promise<BridgeFinding[]> {
   const findings: BridgeFinding[] = [];
 
-  const dupRows = rawDb.query<any, [string]>(
+  // Pattern: duplicate entries — same action + actor + amount.
+  const dupRows = await rawDb.all<any, [string]>(
     `SELECT action, actor_id, amount_iqd, COUNT(*) AS c, GROUP_CONCAT(id) AS ids
      FROM ledger_entries WHERE company_id = ?
      GROUP BY action, actor_id, amount_iqd
      HAVING c > 1 LIMIT 50`,
-  ).all(companyId);
+    [companyId],
+  );
 
   for (const r of dupRows) {
     const ids = String(r.ids).split(",");
@@ -28,7 +30,8 @@ export function runSmartBridge(companyId: string): BridgeFinding[] {
     });
   }
 
-  const contradictions = rawDb.query<any, [string]>(
+  // Pattern: cross-department contradiction.
+  const contradictions = await rawDb.all<any, [string]>(
     `SELECT a.id AS aid, b.id AS bid, a.action AS a_action, b.action AS b_action,
             a.amount_iqd AS a_amt, b.amount_iqd AS b_amt, a.entry_date
      FROM ledger_entries a
@@ -40,7 +43,8 @@ export function runSmartBridge(companyId: string): BridgeFinding[] {
       AND ABS(a.amount_iqd - b.amount_iqd) > 0
      WHERE a.company_id = ?
      LIMIT 50`,
-  ).all(companyId);
+    [companyId],
+  );
 
   for (const r of contradictions) {
     findings.push({
@@ -51,5 +55,6 @@ export function runSmartBridge(companyId: string): BridgeFinding[] {
       involvedEntries: [r.aid, r.bid],
     });
   }
+
   return findings;
 }

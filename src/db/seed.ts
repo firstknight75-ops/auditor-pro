@@ -1,3 +1,6 @@
+// Seed data for development. Opt-in on Turso (set AUDITCORE_SEED=true
+// to load the 12-company demo dataset on an empty remote DB).
+
 import { rawDb } from "./client";
 import { ensureSchema } from "./init";
 
@@ -24,26 +27,11 @@ const COMPANIES: SeedCompany[] = [
 ];
 
 const SECTOR_THRESHOLDS: Record<string, Record<string, { critical: number; high: number; medium: number }>> = {
-  Retail: {
-    FINANCIAL: { critical: 0.35, high: 0.2, medium: 0.1 },
-    COMMERCIAL: { critical: 0.4, high: 0.25, medium: 0.12 },
-  },
-  Manufacturing: {
-    FINANCIAL: { critical: 0.3, high: 0.18, medium: 0.09 },
-    OPERATIONAL: { critical: 0.25, high: 0.15, medium: 0.07 },
-  },
-  Contracting: {
-    FINANCIAL: { critical: 0.32, high: 0.2, medium: 0.1 },
-    OPERATIONAL: { critical: 0.3, high: 0.18, medium: 0.09 },
-  },
-  Services: {
-    ADMINISTRATIVE: { critical: 0.35, high: 0.22, medium: 0.11 },
-    FINANCIAL: { critical: 0.3, high: 0.18, medium: 0.09 },
-  },
-  ImportExport: {
-    COMPLIANCE: { critical: 0.25, high: 0.15, medium: 0.07 },
-    FINANCIAL: { critical: 0.35, high: 0.22, medium: 0.11 },
-  },
+  Retail: { FINANCIAL: { critical: 0.35, high: 0.2, medium: 0.1 }, COMMERCIAL: { critical: 0.4, high: 0.25, medium: 0.12 } },
+  Manufacturing: { FINANCIAL: { critical: 0.3, high: 0.18, medium: 0.09 }, OPERATIONAL: { critical: 0.25, high: 0.15, medium: 0.07 } },
+  Contracting: { FINANCIAL: { critical: 0.32, high: 0.2, medium: 0.1 }, OPERATIONAL: { critical: 0.3, high: 0.18, medium: 0.09 } },
+  Services: { ADMINISTRATIVE: { critical: 0.35, high: 0.22, medium: 0.11 }, FINANCIAL: { critical: 0.3, high: 0.18, medium: 0.09 } },
+  ImportExport: { COMPLIANCE: { critical: 0.25, high: 0.15, medium: 0.07 }, FINANCIAL: { critical: 0.35, high: 0.22, medium: 0.11 } },
 };
 
 function randomDate(daysBack: number): string {
@@ -58,22 +46,10 @@ function fakeHash(seed: string): string {
   return h.toString(16).padStart(64, "0");
 }
 
-interface SeedLedger {
-  companyId: string;
-  count: number;
-  dimensions: Array<"FINANCIAL" | "OPERATIONAL" | "ADMINISTRATIVE" | "COMMERCIAL" | "HUMAN_PERFORMANCE" | "COMPLIANCE">;
-}
-
-function generateLedgerEntries(seed: SeedLedger): void {
+async function generateLedgerEntries(seed: { companyId: string; count: number; dimensions: Array<"FINANCIAL" | "OPERATIONAL" | "ADMINISTRATIVE" | "COMMERCIAL" | "HUMAN_PERFORMANCE" | "COMPLIANCE"> }): Promise<void> {
   const departments = ["Finance", "Warehouse", "Sales", "HR", "Procurement"];
   const actors = ["actor-finance-1", "actor-finance-2", "actor-auditor-1", "actor-manager-1"];
   const actions = ["CERTIFIED_INVOICE", "RECEIPT_LOG", "PAYMENT_POSTED", "SALE_RECORDED", "PURCHASE_ORDER", "ATTENDANCE_LOG"];
-
-  const insert = rawDb.prepare(`
-    INSERT INTO ledger_entries
-      (id, company_id, dimension, department, actor_id, action, amount_iqd, entry_date, entry_kind, status, content_hash, metadata_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
 
   for (let i = 0; i < seed.count; i++) {
     const dim = seed.dimensions[i % seed.dimensions.length];
@@ -82,36 +58,42 @@ function generateLedgerEntries(seed: SeedLedger): void {
     const department = departments[i % departments.length];
     const actor = actors[i % actors.length];
     const action = actions[i % actions.length];
-    insert.run(
-      id, seed.companyId, dim, department, actor, action, amount,
-      randomDate(90), "NORMAL", "ACTIVE", fakeHash(`${seed.companyId}-${id}`),
-      JSON.stringify({ seed: true, idx: i }),
+    await rawDb.run(
+      `INSERT INTO ledger_entries
+        (id, company_id, dimension, department, actor_id, action, amount_iqd, entry_date, entry_kind, status, content_hash, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NORMAL', 'ACTIVE', ?, ?)`,
+      [id, seed.companyId, dim, department, actor, action, amount,
+       randomDate(90), fakeHash(`${seed.companyId}-${id}`),
+       JSON.stringify({ seed: true, idx: i })],
     );
   }
 }
 
-export function seedIfEmpty(): void {
-  ensureSchema();
-  const existing = rawDb.query<{ c: number }, []>("SELECT COUNT(*) AS c FROM companies").get();
+export async function seedIfEmpty(): Promise<void> {
+  await ensureSchema();
+  const existing = await rawDb.query<{ c: number }, []>(
+    "SELECT COUNT(*) AS c FROM companies",
+  );
   if (existing && existing.c > 0) return;
 
-  console.log("[seed] populating 12 companies + ledger entries...");
+  // On Turso we only seed when AUDITCORE_SEED=true — protects prod data
+  // from accidental demo inserts. On local dev we always seed for DX.
+  const isProd = !!(process.env.TURSO_DATABASE_URL || process.env.AUDITCORE_TURSO);
+  const wantSeed = process.env.AUDITCORE_SEED === "true";
+  if (isProd && !wantSeed) {
+    console.log("[seed] skipping on production DB (set AUDITCORE_SEED=true to load demo data)");
+    return;
+  }
 
-  const insertCompany = rawDb.prepare(`
-    INSERT INTO companies (id, name, sector, config_profile_id) VALUES (?, ?, ?, ?)
-  `);
-  const insertBranch = rawDb.prepare(`
-    INSERT INTO branches (id, company_id, name, address) VALUES (?, ?, ?, ?)
-  `);
-  const insertProfile = rawDb.prepare(`
-    INSERT INTO config_profiles (id, sector, dimension_thresholds_json, last_recalibrated_at)
-    VALUES (?, ?, ?, ?)
-  `);
+  console.log("[seed] populating 12 companies + ledger entries...");
 
   const profileIds = new Map<string, string>();
   for (const sector of Object.keys(SECTOR_THRESHOLDS)) {
     const pid = `cfg-${sector.toLowerCase()}`;
-    insertProfile.run(pid, sector, JSON.stringify(SECTOR_THRESHOLDS[sector]), new Date().toISOString());
+    await rawDb.run(
+      `INSERT INTO config_profiles (id, sector, dimension_thresholds_json, last_recalibrated_at) VALUES (?, ?, ?, ?)`,
+      [pid, sector, JSON.stringify(SECTOR_THRESHOLDS[sector]), new Date().toISOString()],
+    );
     profileIds.set(sector, pid);
   }
 
@@ -120,9 +102,15 @@ export function seedIfEmpty(): void {
   };
 
   for (const c of COMPANIES) {
-    insertCompany.run(c.id, c.name, c.sector, profileIds.get(c.sector)!);
+    await rawDb.run(
+      `INSERT INTO companies (id, name, sector, config_profile_id) VALUES (?, ?, ?, ?)`,
+      [c.id, c.name, c.sector, profileIds.get(c.sector)!],
+    );
     for (const b of c.branches) {
-      insertBranch.run(b.id, c.id, b.name, null);
+      await rawDb.run(
+        `INSERT INTO branches (id, company_id, name, address) VALUES (?, ?, ?, NULL)`,
+        [b.id, c.id, b.name],
+      );
     }
 
     let dims: Array<"FINANCIAL" | "OPERATIONAL" | "ADMINISTRATIVE" | "COMMERCIAL" | "HUMAN_PERFORMANCE" | "COMPLIANCE">;
@@ -134,19 +122,14 @@ export function seedIfEmpty(): void {
       case "ImportExport": dims = ["COMPLIANCE", "FINANCIAL", "OPERATIONAL", "COMMERCIAL"]; break;
     }
 
-    generateLedgerEntries({
+    await generateLedgerEntries({
       companyId: c.id,
       count: sectorLedgerCount[c.sector] ?? 70,
       dimensions: dims,
     });
   }
 
-  const insertDev = rawDb.prepare(`
-    INSERT INTO deviations
-      (id, company_id, dimension, severity, financial_impact_iqd, title, description, source_layer, status, suggested_default_action, detected_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
+  // Sample deviations so the dashboard has content out of the box.
   const sampleDeviations = [
     { co: "co-01", dim: "FINANCIAL", sev: "HIGH", impact: 12_400_000, title: "تناقض بين تقرير المبيعات والمخزون", desc: "تقرير المبيعات يظهر 2,400 وحدة مباعة لكن المخزون لم يسجل حركة مقابلة.", layer: "SILENT", action: "REVEAL_ROOT_CAUSE" },
     { co: "co-02", dim: "OPERATIONAL", sev: "CRITICAL", impact: 28_700_000, title: "ارتفاع مفاجئ بمصاريف الصيانة", desc: "مصاريف الصيانة تجاوزت المعيار بنسبة 38% خلال 14 يوم.", layer: "DIRECT", action: "RESOLVE" },
@@ -158,10 +141,15 @@ export function seedIfEmpty(): void {
   ];
 
   for (const d of sampleDeviations) {
-    insertDev.run(
-      `dev-${d.co}-${Math.random().toString(36).slice(2, 8)}`,
-      d.co, d.dim, d.sev, d.impact, d.title, d.desc, d.layer, "OPEN", d.action,
-      new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(),
+    await rawDb.run(
+      `INSERT INTO deviations
+        (id, company_id, dimension, severity, financial_impact_iqd, title, description, source_layer, status, suggested_default_action, detected_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?)`,
+      [
+        `dev-${d.co}-${Math.random().toString(36).slice(2, 8)}`,
+        d.co, d.dim, d.sev, d.impact, d.title, d.desc, d.layer, d.action,
+        new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(),
+      ],
     );
   }
 

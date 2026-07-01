@@ -1,4 +1,4 @@
-import { rawDb } from "../../db/client";
+import { rawDb } from "@/db/client";
 
 export interface CommercialKpis {
   totalRevenueIqd: number; newCustomers: number; marketingSpendIqd: number;
@@ -13,20 +13,22 @@ export interface CommercialFinding {
   financialImpactIqd: number;
 }
 
-function countNewCustomers(companyId: string, sinceIso: string): number {
-  const row = rawDb.query<{ c: number }, [string, string]>(
+async function countNewCustomers(companyId: string, sinceIso: string): Promise<number> {
+  const row = await rawDb.query<{ c: number }, [string, string]>(
     `SELECT COUNT(DISTINCT actor_id) AS c FROM ledger_entries
      WHERE company_id = ? AND action = 'SALE_RECORDED' AND entry_date >= ?`,
-  ).get(companyId, sinceIso);
+    [companyId, sinceIso],
+  );
   return row?.c ?? 0;
 }
 
-function sumMarketingSpend(companyId: string, sinceIso: string): number {
-  const rows = rawDb.query<any, [string, string]>(
+async function sumMarketingSpend(companyId: string, sinceIso: string): Promise<number> {
+  const rows = await rawDb.all<any, [string, string]>(
     `SELECT amount_iqd, metadata_json FROM ledger_entries
      WHERE company_id = ? AND entry_date >= ?
      AND department = 'Sales' AND action = 'PAYMENT_POSTED'`,
-  ).all(companyId, sinceIso);
+    [companyId, sinceIso],
+  );
   let total = 0;
   for (const r of rows) {
     const meta = r.metadata_json ? JSON.parse(r.metadata_json) : {};
@@ -35,17 +37,18 @@ function sumMarketingSpend(companyId: string, sinceIso: string): number {
   return total;
 }
 
-export function computeCommercialKpis(companyId: string, windowDays = 90): CommercialKpis {
+export async function computeCommercialKpis(companyId: string, windowDays = 90): Promise<CommercialKpis> {
   const since = new Date(Date.now() - windowDays * 86400000).toISOString();
   const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
-  const newCustomers = countNewCustomers(companyId, since);
-  const marketingSpendIqd = sumMarketingSpend(companyId, since);
+  const newCustomers = await countNewCustomers(companyId, since);
+  const marketingSpendIqd = await sumMarketingSpend(companyId, since);
   const cacIqd = newCustomers > 0 ? marketingSpendIqd / newCustomers : 0;
 
-  const revenueRow = rawDb.query<{ s: number }, [string, string]>(
+  const revenueRow = await rawDb.query<{ s: number }, [string, string]>(
     `SELECT COALESCE(SUM(amount_iqd), 0) AS s FROM ledger_entries
      WHERE company_id = ? AND action = 'SALE_RECORDED' AND entry_date >= ?`,
-  ).get(companyId, yearAgo);
+    [companyId, yearAgo],
+  );
   const totalRevenueIqd = revenueRow?.s ?? 0;
 
   const avgPurchaseIqd = newCustomers > 0 ? totalRevenueIqd / newCustomers : 0;
@@ -54,22 +57,24 @@ export function computeCommercialKpis(companyId: string, windowDays = 90): Comme
   const ltvIqd = avgPurchaseIqd * avgPurchasesPerYear * avgCustomerLifespanYears;
   const ltvCacRatio = cacIqd > 0 ? ltvIqd / cacIqd : 0;
 
-  const retentionRow = rawDb.query<{ start: number; end: number; newCount: number }, [string, string, string, string, string, string]>(
+  const retentionRow = await rawDb.query<{ start: number; end: number; newCount: number }, [string, string, string, string, string, string]>(
     `SELECT
        (SELECT COUNT(DISTINCT actor_id) FROM ledger_entries WHERE company_id = ? AND action='SALE_RECORDED' AND entry_date < ?) AS start,
        (SELECT COUNT(DISTINCT actor_id) FROM ledger_entries WHERE company_id = ? AND action='SALE_RECORDED' AND entry_date >= ?) AS end,
        (SELECT COUNT(DISTINCT actor_id) FROM ledger_entries WHERE company_id = ? AND action='SALE_RECORDED' AND entry_date >= ?) AS newCount`,
-  ).get(companyId, since, companyId, since, companyId, since);
+    [companyId, since, companyId, since, companyId, since],
+  );
   const startCust = retentionRow?.start ?? 0;
   const endCust = retentionRow?.end ?? 0;
   const newCust = retentionRow?.newCount ?? 0;
   const retentionRatePct = startCust > 0 ? Math.max(0, ((endCust - newCust) / startCust) * 100) : 100;
 
-  const topRows = rawDb.query<{ actor_id: string; s: number }, [string, string]>(
+  const topRows = await rawDb.all<{ actor_id: string; s: number }, [string, string]>(
     `SELECT actor_id, SUM(amount_iqd) AS s FROM ledger_entries
      WHERE company_id = ? AND action = 'SALE_RECORDED' AND entry_date >= ?
      GROUP BY actor_id ORDER BY s DESC LIMIT 3`,
-  ).all(companyId, yearAgo);
+    [companyId, yearAgo],
+  );
 
   const top1 = topRows[0]?.s ?? 0;
   const top3 = topRows.reduce((acc, r) => acc + r.s, 0);
@@ -84,8 +89,8 @@ export function computeCommercialKpis(companyId: string, windowDays = 90): Comme
   };
 }
 
-export function findCommercialDeviations(companyId: string): CommercialFinding[] {
-  const k = computeCommercialKpis(companyId);
+export async function findCommercialDeviations(companyId: string): Promise<CommercialFinding[]> {
+  const k = await computeCommercialKpis(companyId);
   const findings: CommercialFinding[] = [];
 
   if (k.ltvCacRatio > 0 && k.ltvCacRatio < 3) {

@@ -1,4 +1,4 @@
-import { rawDb } from "../../db/client";
+import { rawDb } from "@/db/client";
 
 export interface ComplianceItem {
   id: string;
@@ -17,14 +17,13 @@ export interface ComplianceFinding {
   financialImpactIqd: number;
 }
 
-export function listComplianceItems(companyId: string): ComplianceItem[] {
-  const rows = rawDb
-    .query<any, [string]>(
-      `SELECT id, action, metadata_json, created_at FROM ledger_entries
-       WHERE company_id = ? AND dimension = 'COMPLIANCE'
-       ORDER BY created_at DESC LIMIT 50`,
-    )
-    .all(companyId);
+export async function listComplianceItems(companyId: string): Promise<ComplianceItem[]> {
+  const rows = await rawDb.all<any, [string]>(
+    `SELECT id, action, metadata_json, created_at FROM ledger_entries
+     WHERE company_id = ? AND dimension = 'COMPLIANCE'
+     ORDER BY created_at DESC LIMIT 50`,
+    [companyId],
+  );
 
   const now = Date.now();
   return rows.map((r) => {
@@ -42,8 +41,8 @@ export function listComplianceItems(companyId: string): ComplianceItem[] {
   });
 }
 
-export function findComplianceDeviations(companyId: string): ComplianceFinding[] {
-  const items = listComplianceItems(companyId);
+export async function findComplianceDeviations(companyId: string): Promise<ComplianceFinding[]> {
+  const items = await listComplianceItems(companyId);
   const findings: ComplianceFinding[] = [];
   for (const it of items) {
     if (it.status === "EXPIRED") {

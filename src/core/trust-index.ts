@@ -1,4 +1,8 @@
-import { rawDb } from "../db/client";
+// §2 / Rule 2: Trust Index calculator.
+// 100 - (sum of error weights / total data points × 100).
+// Computed per company AND per dimension. All operations are async.
+
+import { rawDb } from "@/db/client";
 
 interface TrustBreakdown { label: string; value: string; }
 
@@ -20,22 +24,20 @@ interface ErrorStats {
   inconsistentNumbers: number;
 }
 
-function computeErrorStats(companyId: string, dimension: string | null): ErrorStats {
+async function computeErrorStats(companyId: string, dimension: string | null): Promise<ErrorStats> {
   const dimFilter = dimension ? "AND dimension = ?" : "";
   const args: Array<string | null> = dimension ? [companyId, dimension] : [companyId];
-  const ledgerRow = rawDb
-    .query<{ c: number }, string[]>(
-      `SELECT COUNT(*) AS c FROM ledger_entries WHERE company_id = ? ${dimFilter}`,
-    )
-    .get(...args);
+  const ledgerRow = await rawDb.query<{ c: number }, string[]>(
+    `SELECT COUNT(*) AS c FROM ledger_entries WHERE company_id = ? ${dimFilter}`,
+    args as string[],
+  );
   const totalDataPoints = ledgerRow?.c ?? 0;
 
   const devFilter = dimension ? "AND dimension = ?" : "";
-  const devs = rawDb
-    .query<{ severity: string; c: number }, string[]>(
-      `SELECT severity, COUNT(*) AS c FROM deviations WHERE company_id = ? ${devFilter} GROUP BY severity`,
-    )
-    .all(...args);
+  const devs = await rawDb.all<{ severity: string; c: number }, string[]>(
+    `SELECT severity, COUNT(*) AS c FROM deviations WHERE company_id = ? ${devFilter} GROUP BY severity`,
+    args as string[],
+  );
 
   let missingFields = 0, formatErrors = 0, duplicates = 0, inconsistentNumbers = 0;
   for (const row of devs) {
@@ -50,8 +52,8 @@ function computeErrorStats(companyId: string, dimension: string | null): ErrorSt
 
 const ERROR_WEIGHTS = { missingField: 5, formatError: 3, duplicate: 4, inconsistentNumber: 2 };
 
-export function calculateTrustIndex(companyId: string, dimension: string | null = null): TrustIndexResult {
-  const stats = computeErrorStats(companyId, dimension);
+export async function calculateTrustIndex(companyId: string, dimension: string | null = null): Promise<TrustIndexResult> {
+  const stats = await computeErrorStats(companyId, dimension);
   const errorWeight =
     stats.missingFields * ERROR_WEIGHTS.missingField +
     stats.formatErrors * ERROR_WEIGHTS.formatError +
@@ -63,8 +65,7 @@ export function calculateTrustIndex(companyId: string, dimension: string | null 
     : Math.max(0, Math.min(100, 100 - (errorWeight / stats.totalDataPoints) * 100));
 
   return {
-    companyId,
-    dimension,
+    companyId, dimension,
     score: Math.round(score * 10) / 10,
     dataPoints: stats.totalDataPoints,
     errorWeight,
@@ -78,30 +79,28 @@ export function calculateTrustIndex(companyId: string, dimension: string | null 
   };
 }
 
-export function calculateTrustTrend(companyId: string, dimension: string | null = null): number[] {
-  const rows = rawDb
-    .query<{ score: number }, string[]>(
-      `SELECT score FROM trust_index_log WHERE company_id = ? ${dimension ? "AND dimension = ?" : ""} ORDER BY calculated_at DESC LIMIT 6`,
-    )
-    .all(...(dimension ? [companyId, dimension] : [companyId]));
+export async function calculateTrustTrend(companyId: string, dimension: string | null = null): Promise<number[]> {
+  const rows = await rawDb.all<{ score: number }, string[]>(
+    `SELECT score FROM trust_index_log WHERE company_id = ? ${dimension ? "AND dimension = ?" : ""} ORDER BY calculated_at DESC LIMIT 6`,
+    dimension ? [companyId, dimension] : [companyId],
+  );
 
   if (rows.length === 0) {
-    const current = calculateTrustIndex(companyId, dimension).score;
-    return Array.from({ length: 6 }, (_, i) => Math.round(current + Math.sin(i) * 2));
+    const current = await calculateTrustIndex(companyId, dimension);
+    return Array.from({ length: 6 }, (_, i) => Math.round(current.score + Math.sin(i) * 2));
   }
   return rows.map((r) => Math.round(r.score));
 }
 
-export function logTrustIndex(result: TrustIndexResult): void {
-  rawDb
-    .prepare(
-      `INSERT INTO trust_index_log (id, company_id, dimension, score, data_points, error_weight, breakdown_json, calculated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
+export async function logTrustIndex(result: TrustIndexResult): Promise<void> {
+  await rawDb.run(
+    `INSERT INTO trust_index_log (id, company_id, dimension, score, data_points, error_weight, breakdown_json, calculated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
       `ti-${result.companyId}-${result.dimension ?? "all"}-${Date.now()}`,
       result.companyId, result.dimension, result.score,
       result.dataPoints, result.errorWeight,
       JSON.stringify(result.breakdown), new Date().toISOString(),
-    );
+    ],
+  );
 }
