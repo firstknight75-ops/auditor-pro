@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { rawDb, DB_MODE } from "../db/client";
+import { rawDb } from "../db/client";
 import { ensureSchema, initDb } from "../db/init";
 import { sha256Hex } from "../core/ledger";
 import { parseExcel } from "../core/parsers/excel";
@@ -15,7 +15,7 @@ interface UploadResult {
 }
 
 export const uploadAndClassify = createServerFn({ method: "POST" })
-  .validator((d: unknown) => d as {
+  .inputValidator((d: unknown) => d as {
     companyId: string; actorId: string; filename: string;
     fileType: "xlsx" | "csv"; base64Content: string;
   })
@@ -48,6 +48,7 @@ export const uploadAndClassify = createServerFn({ method: "POST" })
     }
 
     const firstSheet = parsed.sheets[0];
+    if (!firstSheet) throw new Error("الملف لا يحتوي على بيانات قابلة للقراءة.");
     const classification = classifyDimension({
       columns: firstSheet.columns,
       sampleRows: firstSheet.rows.slice(0, 10).map((r) => r.raw),

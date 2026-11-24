@@ -104,7 +104,7 @@ export async function seedIfEmpty(): Promise<void> {
   for (const c of COMPANIES) {
     await rawDb.run(
       `INSERT INTO companies (id, name, sector, config_profile_id) VALUES (?, ?, ?, ?)`,
-      [c.id, c.name, c.sector, profileIds.get(c.sector)!],
+      [c.id, c.name, c.sector, profileIds.get(c.sector) ?? ""],
     );
     for (const b of c.branches) {
       await rawDb.run(
