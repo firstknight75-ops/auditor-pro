@@ -2,7 +2,7 @@
 // KPIs: production efficiency, waste %, on-time delivery, inventory turnover.
 // All inputs come from the ledger — no separate operational data source.
 
-import { rawDb } from "../db/client";
+import { rawDb } from "@/db/client";
 
 export interface OperationalKpis {
   totalProduced: number;

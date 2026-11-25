@@ -9,13 +9,13 @@ import { classifyDimension } from "../core/parsers/classify";
 interface UploadResult {
   fileId: string; fileHash: string; filename: string;
   fileType: "xlsx" | "csv" | "pdf" | "image";
-  sheets: Array<{ name: string; columns: string[]; rows: Array<{ rowIndex: number; raw: Record<string, string | null> }> }>;
+  sheets: Array<{ name: string; columns: string[]; rows: Array<{ rowIndex: number; raw: Record<string, string | number | null> }> }>;
   classification: { dimension: string; confidence: number; department: string; suggestedAction: string; detectedFields: Record<string, string> };
   totalRows: number;
 }
 
 export const uploadAndClassify = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
+  .validator((d: unknown) => d as {
     companyId: string; actorId: string; filename: string;
     fileType: "xlsx" | "csv"; base64Content: string;
   })
@@ -51,7 +51,7 @@ export const uploadAndClassify = createServerFn({ method: "POST" })
     if (!firstSheet) throw new Error("الملف لا يحتوي على بيانات قابلة للقراءة.");
     const classification = classifyDimension({
       columns: firstSheet.columns,
-      sampleRows: firstSheet.rows.slice(0, 10).map((r) => r.raw),
+      sampleRows: firstSheet.rows.slice(0, 10).map((r) => Object.fromEntries(Object.entries(r.raw).map(([k, v]) => [k, v == null ? null : String(v)]))),
     });
 
     const fileId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

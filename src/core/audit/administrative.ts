@@ -2,7 +2,7 @@
 // Quantitative KPIs (per spec): turnover rate, revenue per employee, cycle time.
 // These replace the older "qualitative" indicators with measurable signals.
 
-import { rawDb } from "../db/client";
+import { rawDb } from "@/db/client";
 
 export interface AdministrativeKpis {
   activeEmployees: number;          // distinct HR-system actor_ids seen this quarter

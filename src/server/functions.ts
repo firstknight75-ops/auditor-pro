@@ -55,7 +55,7 @@ async function getConfigProfile(companyId: string): Promise<any> {
 // ── Owner ──────────────────────────────────────────────────────────────
 
 export const getOwnerIndex = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const [fk, ck, compliance, trust] = await Promise.all([
@@ -101,7 +101,7 @@ export const getOwnerIndex = createServerFn({ method: "POST" })
   });
 
 export const getTrustIndex = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string; dimension?: string | null })
+  .validator((d: unknown) => d as { companyId: string; dimension?: string | null })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const result = await calculateTrustIndex(data.companyId, data.dimension ?? null);
@@ -111,7 +111,7 @@ export const getTrustIndex = createServerFn({ method: "POST" })
   });
 
 export const getTrustIndexByDimension = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const dims = ["FINANCIAL", "OPERATIONAL", "ADMINISTRATIVE", "COMMERCIAL", "HUMAN_PERFORMANCE", "COMPLIANCE"];
@@ -124,18 +124,18 @@ export const getTrustIndexByDimension = createServerFn({ method: "POST" })
   });
 
 export const getLedger = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string; dimension?: string; department?: string; search?: string; limit?: number })
+  .validator((d: unknown) => d as { companyId: string; dimension?: string; department?: string; search?: string; limit?: number })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     return { records: await listEntries(data.companyId, data) };
   });
 
 export const verifyLedgerHash = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { hash: string })
+  .validator((d: unknown) => d as { hash: string })
   .handler(async ({ data }) => { await ensureReady(); return verifyHash(data.hash); });
 
 export const getOwnerRiskMap = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     return {
@@ -149,7 +149,7 @@ export const getOwnerRiskMap = createServerFn({ method: "POST" })
   });
 
 export const getOwnerWasteMap = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const findings = [
@@ -173,7 +173,7 @@ export const listCompanies = createServerFn({ method: "POST" })
   });
 
 export const getOwnerPortfolio = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as Record<string, unknown>)
+  .validator((d: unknown) => d as Record<string, unknown>)
   .handler(async () => {
     await ensureReady();
     const rows = await rawDb.all<{ id: string; name: string; sector: string }>(
@@ -197,7 +197,7 @@ export const getOwnerPortfolio = createServerFn({ method: "POST" })
 // ── Auditor ─────────────────────────────────────────────────────────────
 
 export const listSourceFiles = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const rows = await rawDb.all<any>(
@@ -209,7 +209,7 @@ export const listSourceFiles = createServerFn({ method: "POST" })
   });
 
 export const certifyFile = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
+  .validator((d: unknown) => d as {
     companyId: string; fileId: string; actorId: string;
     rows: Array<{ amount: number; entryDate: string; department: string; dimension: string; action: string; metadata?: Record<string, unknown> }>;
   })
@@ -230,7 +230,7 @@ export const certifyFile = createServerFn({ method: "POST" })
   });
 
 export const rejectFile = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { fileId: string; reason: string })
+  .validator((d: unknown) => d as { fileId: string; reason: string })
   .handler(async ({ data }) => {
     await ensureReady();
     await rawDb.run(`UPDATE source_files SET status='REJECTED' WHERE id=?`, [data.fileId]);
@@ -238,13 +238,13 @@ export const rejectFile = createServerFn({ method: "POST" })
   });
 
 export const createReversingEntry = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { originalEntryId: string; correctionReason: string; actorId: string })
+  .validator((d: unknown) => d as { originalEntryId: string; correctionReason: string; actorId: string })
   .handler(async ({ data }) => { await ensureReady(); return createReversal(data); });
 
 // ── Manager ─────────────────────────────────────────────────────────────
 
 export const getManagerTasks = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const corrections = await rawDb.all<any>(
@@ -261,7 +261,7 @@ export const getManagerTasks = createServerFn({ method: "POST" })
 // ── Advisor ─────────────────────────────────────────────────────────────
 
 export const getAdvisorDeviations = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string; status?: string })
+  .validator((d: unknown) => d as { companyId: string; status?: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const status = data.status ?? "OPEN";
@@ -284,7 +284,7 @@ export const getAdvisorDeviations = createServerFn({ method: "POST" })
   });
 
 export const actOnDeviation = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
+  .validator((d: unknown) => d as {
     deviationId: string;
     action: "RESOLVE" | "DISMISS" | "DEFER" | "REQUEST_ADVISORY" | "REVEAL_ROOT_CAUSE";
     actorId: string; notes?: string;
@@ -329,7 +329,7 @@ export const actOnDeviation = createServerFn({ method: "POST" })
   });
 
 export const recalibrateThresholds = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string })
+  .validator((d: unknown) => d as { companyId: string })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const profile = await getConfigProfile(data.companyId);
@@ -344,7 +344,7 @@ export const recalibrateThresholds = createServerFn({ method: "POST" })
 // ── What-if ─────────────────────────────────────────────────────────────
 
 export const runWhatIf = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { companyId: string; recoveryPct: number; costCutPct: number; collectionBoostPct: number })
+  .validator((d: unknown) => d as { companyId: string; recoveryPct: number; costCutPct: number; collectionBoostPct: number })
   .handler(async ({ data }) => {
     await ensureCompany(data.companyId);
     const fk = await computeFinancialKpis(data.companyId);
